@@ -61,10 +61,6 @@ PROGRAM MONODOMAINCUDAEXAMPLE
 
   IMPLICIT NONE
 
-  INTEGER(CMISSIntg), PARAMETER :: EquationsSetFieldUserNumber=1337
-  TYPE(CMISSFieldType) :: EquationsSetField
-
-
   !Test program parameters
 
   INTEGER(CMISSIntg), PARAMETER :: CoordinateSystemUserNumber=1
@@ -73,9 +69,9 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   INTEGER(CMISSIntg), PARAMETER :: MeshUserNumber=5
   INTEGER(CMISSIntg), PARAMETER :: DecompositionUserNumber=6
   INTEGER(CMISSIntg), PARAMETER :: GeometricFieldUserNumber=7
-  INTEGER(CMISSIntg), PARAMETER :: DependentFieldUserNumber=8
-  INTEGER(CMISSIntg), PARAMETER :: MaterialsFieldUserNumber=9
-  INTEGER(CMISSIntg), PARAMETER :: SourceFieldUserNumber=10
+  INTEGER(CMISSIntg), PARAMETER :: EquationsSetFieldUserNumber=8
+  INTEGER(CMISSIntg), PARAMETER :: DependentFieldUserNumber=9
+  INTEGER(CMISSIntg), PARAMETER :: MaterialsFieldUserNumber=10
   INTEGER(CMISSIntg), PARAMETER :: CellMLUserNumber=11
   INTEGER(CMISSIntg), PARAMETER :: CellMLModelsFieldUserNumber=12
   INTEGER(CMISSIntg), PARAMETER :: CellMLStateFieldUserNumber=13
@@ -97,15 +93,11 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   INTEGER(CMISSIntg) :: NUMBER_OF_DOMAINS, ERROR
   ! 4 nodes per tetrahedral element
   INTEGER(CMISSIntg), PARAMETER :: NODES_PER_ELEMENT=4
-  INTEGER(CMISSIntg) :: NODE_SET(NODES_PER_ELEMENT)
-
-  ! C Pointer
-  TYPE(C_PTR) :: NODE_COORDINATES_C
-  TYPE(C_PTR) :: NODE_SETS_C
+  INTEGER(CMISSIntg) :: NODE_SET_ELEMENT(NODES_PER_ELEMENT)
 
   ! FORTRAN Pointers to Arrays
-  REAL(C_DOUBLE), POINTER ::NODE_COORDINATES_F90(:)
-  INTEGER(C_INT), POINTER :: NODE_SETS_F90(:)
+  REAL(CMISSDP), POINTER ::NODE_COORDINATES(:)
+  INTEGER(CMISSIntg), POINTER :: NODE_SETS(:)
 
   INTEGER(C_INT) :: NUMBER_OF_NODES,NUMBER_OF_ELEMENTS
 
@@ -128,7 +120,7 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   TYPE(CMISSDecompositionType) :: Decomposition
   TYPE(CMISSEquationsType) :: Equations
   TYPE(CMISSEquationsSetType) :: EquationsSet
-  TYPE(CMISSFieldType) :: GeometricField,DependentField,MaterialsField,SourceField
+  TYPE(CMISSFieldType) :: GeometricField,EquationsSetField,DependentField,MaterialsField
   TYPE(CMISSFieldType) :: CellMLModelsField,CellMLStateField,CellMLIntermediateField,CellMLParametersField
   TYPE(CMISSFieldsType) :: Fields
   TYPE(CMISSMeshType) :: Mesh
@@ -202,10 +194,9 @@ PROGRAM MONODOMAINCUDAEXAMPLE
     & CMISSBasisLinearSimplexInterpolation,CMISSBasisLinearSimplexInterpolation/),Err)
   CALL CMISSBasisCreateFinish(Basis,Err)
 
-
-  CALL CMISSReadVTK("Atlas_Mesh.vtk", NODE_COORDINATES_C, NUMBER_OF_NODES, NODE_SETS_C, NUMBER_OF_ELEMENTS,Err)
-  CALL C_F_POINTER(NODE_COORDINATES_C, NODE_COORDINATES_F90,[NUMBER_OF_NODES*NumberOfMeshDimensions])
-  CALL C_F_POINTER(NODE_SETS_C, NODE_SETS_F90,[NUMBER_OF_ELEMENTS*NODES_PER_ELEMENT])
+  !Read in VTK
+  CALL CMISSReadVTK("Atlas_Mesh.vtk", NumberOfMeshDimensions,NODES_PER_ELEMENT,NODE_COORDINATES, NUMBER_OF_NODES, &
+    & NODE_SETS, NUMBER_OF_ELEMENTS,Err)
 
   !Create a mesh
   CALL CMISSMeshTypeInitialise(Mesh,Err)
@@ -222,18 +213,17 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   CALL CMISSMeshElementsCreateStart(Mesh,MeshComponentNumber,Basis,Elements,Err)
   DO N=0,NUMBER_OF_ELEMENTS-1
       INDEX=(NODES_PER_ELEMENT*N)+1
-      DO M=1, NODES_PER_ELEMENT
-        NODE_SET(M)=NODE_SETS_F90(INDEX+M-1)+1
+      DO M=1,NODES_PER_ELEMENT
+        NODE_SET_ELEMENT(M)=NODE_SETS(INDEX+M-1)+1
       ENDDO
-      CALL CMISSMeshElementsNodesSet(Elements,N+1,NODE_SET,Err)
+      CALL CMISSMeshElementsNodesSet(Elements,N+1,NODE_SET_ELEMENT,Err)
   ENDDO
-
 
   CALL CMISSMeshElementsCreateFinish(Elements,Err)
 
   CALL CMISSMeshCreateFinish(Mesh,Err)
 
-!Create a decomposition
+  !Create a decomposition
   CALL CMISSDecompositionTypeInitialise(Decomposition,Err)
   CALL CMISSDecompositionCreateStart(DecompositionUserNumber,Mesh,Decomposition,Err)
   CALL CMISSDecompositionTypeSet(Decomposition,CMISSDecompositionCalculatedType,Err)
@@ -255,7 +245,7 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   DO N=0,NUMBER_OF_NODES-1
     DO M=0, NumberOfMeshDimensions-1
       CALL CMISSFieldParameterSetUpdateNode(GeometricField,CMISSFieldUVariableType,CMISSFieldValuesSetType,1,1,N+1 &
-      & ,M+1,NODE_COORDINATES_F90(N*NumberOfMeshDimensions+M+1),Err)
+      & ,M+1,NODE_COORDINATES(N*NumberOfMeshDimensions+M+1),Err)
     ENDDO
   ENDDO
 
@@ -285,12 +275,6 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   CALL CMISSFieldComponentValuesInitialise(MaterialsField,CMISSFieldUVariableType,CMISSFieldValuesSetType,1,20.00_CMISSDP,Err)
   CALL CMISSFieldComponentValuesInitialise(MaterialsField,CMISSFieldUVariableType,CMISSFieldValuesSetType,2,20.00_CMISSDP,Err)
   CALL CMISSFieldComponentValuesInitialise(MaterialsField,CMISSFieldUVariableType,CMISSFieldValuesSetType,3,20.00_CMISSDP,Err)
-
-  !Create the equations set source field variables
-  CALL CMISSFieldTypeInitialise(SourceField,Err)
-  CALL CMISSEquationsSetSourceCreateStart(EquationsSet,SourceFieldUserNumber,SourceField,Err)
-  !Finish the equations set source field variables
-  CALL CMISSEquationsSetSourceCreateFinish(EquationsSet,Err)
 
   !Create the CellML environment
   CALL CMISSCellMLTypeInitialise(CellML,Err)
@@ -380,21 +364,6 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   !Finish the equations set equations
   CALL CMISSEquationsSetEquationsCreateFinish(EquationsSet,Err)
 
-  !Start the creation of the equations set boundary conditions
-  CALL CMISSBoundaryConditionsTypeInitialise(BoundaryConditions,Err)
-  CALL CMISSEquationsSetBoundaryConditionsCreateStart(EquationsSet,BoundaryConditions,Err)
-  !Set the first 3175 nodes to flux of 0.0
-  DO N=1,3175
-    CALL CMISSBoundaryConditionsSetNode(BoundaryConditions,CMISSFieldDelUDelNVariableType,1,1,N,1, &
-      & CMISSBoundaryConditionFixed,0.0_CMISSDP,Err)
-  ENDDO
-  !Finish the creation of the equations set boundary conditions
-  CALL CMISSEquationsSetBoundaryConditionsCreateFinish(EquationsSet,Err)
-
-  !Set the Stimulus at node 1
-  CALL CMISSFieldParameterSetUpdateNode(CellMLParametersField,CMISSFieldUVariableType,CMISSFieldValuesSetType,1,1,4000,1, &
-    & -10.0_CMISSDP,Err)
-
   !Start the creation of a problem.
   CALL CMISSProblemTypeInitialise(Problem,Err)
   CALL CMISSProblemCreateStart(ProblemUserNumber,Problem,Err)
@@ -468,6 +437,20 @@ PROGRAM MONODOMAINCUDAEXAMPLE
   !Finish the creation of the problem solver equations
   CALL CMISSProblemSolverEquationsCreateFinish(Problem,Err)
 
+  !Start the creation of the solver equations boundary conditions
+  CALL CMISSBoundaryConditionsTypeInitialise(BoundaryConditions,Err)
+  CALL CMISSSolverEquationsBoundaryConditionsCreateStart(SolverEquations,BoundaryConditions,Err)
+  !Set the first 3175 nodes to flux of 0.0
+  DO N=1,3175
+    CALL CMISSBoundaryConditionsSetNode(BoundaryConditions,DependentField,CMISSFieldDelUDelNVariableType,1,1,N,1, &
+      & CMISSBoundaryConditionFixed,0.0_CMISSDP,Err)
+  ENDDO
+  !Finish the creation of the equations set boundary conditions
+  CALL CMISSSolverEquationsBoundaryConditionsCreateFinish(SolverEquations,Err)
+
+  !Set the Stimulus at node 1
+  CALL CMISSFieldParameterSetUpdateNode(CellMLParametersField,CMISSFieldUVariableType,CMISSFieldValuesSetType,1,1,4000,1, &
+    & -10.0_CMISSDP,Err)
   !Solve the problem for the first 100 ms
   CALL CMISSProblemSolve(Problem,Err)
 
