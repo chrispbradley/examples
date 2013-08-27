@@ -422,7 +422,7 @@ PROGRAM COUPLEDLAPLACE
   PRINT *, ' == >> CREATING INTERFACE MESHES CONNECTIVITY << == '
   CALL CMISSInterfaceMeshConnectivity_Initialise(InterfaceMeshConnectivity,Err)
   CALL CMISSInterfaceMeshConnectivity_CreateStart(Interface,InterfaceMesh,InterfaceMeshConnectivity,Err)
-  CALL CMISSInterfaceMeshConnectivity_SetBasis(InterfaceMeshConnectivity,InterfaceMappingBasis,Err)
+  CALL CMISSInterfaceMeshConnectivity_BasisSet(InterfaceMeshConnectivity,InterfaceMappingBasis,Err)
   SELECT CASE(INTERPOLATION_TYPE)
   CASE(1,4)
     NUMBER_OF_NODE_XI=2
