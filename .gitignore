@@ -1,6 +1,12 @@
 # Built files
 object/
 bin/
+lib/
+/include/
+src/opencmiss_c.f90
+
+# OpenCMISS examples repository
+/examples
 
 # OpenCMISS output
 *.diag
