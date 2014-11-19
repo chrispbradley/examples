@@ -19,7 +19,6 @@ numberOfYElements = 25
 
 # Materials parameters
 Am = 193.6
-Cm = 0.014651
 conductivity = 0.1
 
 # Simulation parameters
@@ -146,15 +145,6 @@ equationsSet.DependentCreateFinish()
 materialsField = CMISS.Field()
 equationsSet.MaterialsCreateStart(materialsFieldUserNumber, materialsField)
 equationsSet.MaterialsCreateFinish()
-
-# Set the materials values
-# Set Am
-materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U,CMISS.FieldParameterSetTypes.VALUES,1,Am)
-# Set Cm
-materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U,CMISS.FieldParameterSetTypes.VALUES,2,Cm)
-# Set conductivity
-materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U,CMISS.FieldParameterSetTypes.VALUES,3,conductivity)
-materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U,CMISS.FieldParameterSetTypes.VALUES,4,conductivity)
 #DOC-END equations set fields
 
 #DOC-START create cellml environment
@@ -197,10 +187,24 @@ cellML.CreateCellMLToFieldMap(noble98Model,"membrane/V", CMISS.FieldParameterSet
 
 #Finish the creation of CellML <--> OpenCMISS field maps
 cellML.FieldMapsCreateFinish()
-
-# Set the initial Vm values
-dependentField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1,-92.5)
 #DOC-END map Vm components
+
+#DOC-START material constants and initial conditions
+# Set the materials values
+# Set Am
+materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, Am)
+# Get Cm from the initial value of the CellML model
+Cm = cellML.VariableInitialValueGet(noble98Model, "membrane/Cm")
+# Set Cm
+materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 2, Cm)
+# Set conductivity
+materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 3, conductivity)
+materialsField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 4, conductivity)
+# Get the initial value of Vm
+Vm = cellML.VariableInitialValueGet(noble98Model,"membrane/V")
+# Set the initial Vm values
+dependentField.ComponentValuesInitialise(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, Vm)
+#DOC-END material constants and initial conditions
 
 #DOC-START define CellML models field
 #Create the CellML models field
@@ -248,7 +252,9 @@ for node in range(1,numberOfXElements/2):
     if nodeDomain == computationalNodeNumber:
         cellMLParametersField.ParameterSetUpdateNode(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, 1, node, stimComponent, stimValue)
 
+#DOC-START define gNa gradient
 # Set up the gNa gradient
+gNa = cellML.VariableInitialValueGet(noble98Model, "fast_sodium_current/g_Na")
 gNaComponent = cellML.FieldComponentGet(noble98Model, CMISS.CellMLFieldTypes.PARAMETERS, "fast_sodium_current/g_Na")
 for node in range(1,lastNodeNumber):
     nodeDomain = decomposition.NodeDomainGet(node,1)
@@ -256,8 +262,9 @@ for node in range(1,lastNodeNumber):
         x = geometricField.ParameterSetGetNode(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, 1, node, 1)
         y = geometricField.ParameterSetGetNode(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, 1, node, 2)
         distance = math.sqrt(x*x + y*y)/math.sqrt(width*width + height*height)
-        gNaValue = 2*(distance + 0.5)*0.3855
+        gNaValue = 2*(distance + 0.5)*gNa
         cellMLParametersField.ParameterSetUpdateNode(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, 1, node, gNaComponent, gNaValue)
+#DOC-END define gNa gradient
 
 #DOC-START define monodomain problem
 #Define the problem
@@ -269,6 +276,7 @@ problem.SpecificationSet(CMISS.ProblemClasses.BIOELECTRICS,
 problem.CreateFinish()
 #DOC-END define monodomain problem
 
+#DOC-START control loop
 #Create the problem control loop
 problem.ControlLoopCreateStart()
 controlLoop = CMISS.ControlLoop()
@@ -277,7 +285,9 @@ controlLoop.TimesSet(0.0,stimStop,pdeTimeStep)
 controlLoop.OutputTypeSet(CMISS.ControlLoopOutputTypes.TIMING)
 controlLoop.TimeOutputSet(outputFrequency)
 problem.ControlLoopCreateFinish()
+#DOC-END control loop
 
+#DOC-START solvers
 #Create the problem solvers
 daeSolver = CMISS.Solver()
 dynamicSolver = CMISS.Solver()
@@ -290,16 +300,18 @@ daeSolver.OutputTypeSet(CMISS.SolverOutputTypes.NONE)
 problem.SolverGet([CMISS.ControlLoopIdentifiers.NODE],2,dynamicSolver)
 dynamicSolver.OutputTypeSet(CMISS.SolverOutputTypes.NONE)
 problem.SolversCreateFinish()
+#DOC-END solvers
 
-#DOC-START define CellML solver
-#Create the problem solver CellML equations
+#DOC-START define CellML equations
+#Create the solver CellML equations
 cellMLEquations = CMISS.CellMLEquations()
 problem.CellMLEquationsCreateStart()
 daeSolver.CellMLEquationsGet(cellMLEquations)
 cellmlIndex = cellMLEquations.CellMLAdd(cellML)
 problem.CellMLEquationsCreateFinish()
-#DOC-END define CellML solver
+#DOC-END define CellML equations
 
+#DOC-START define CellML solver
 #Create the problem solver PDE equations
 solverEquations = CMISS.SolverEquations()
 problem.SolverEquationsCreateStart()
@@ -307,31 +319,42 @@ dynamicSolver.SolverEquationsGet(solverEquations)
 solverEquations.sparsityType = CMISS.SolverEquationsSparsityTypes.SPARSE
 equationsSetIndex = solverEquations.EquationsSetAdd(equationsSet)
 problem.SolverEquationsCreateFinish()
+#DOC-END define CellML solver
 
+#DOC-START define boundary conditions
 # Prescribe any boundary conditions 
 boundaryConditions = CMISS.BoundaryConditions()
 solverEquations.BoundaryConditionsCreateStart(boundaryConditions)
 solverEquations.BoundaryConditionsCreateFinish()
+#DOC-END define boundary conditions
 
+#DOC-START solve with stiumlus
 # Solve the problem until stimStop
 problem.Solve()
+#DOC-END solve with stiumlus
 
+#DOC-START turn stimulus off
 # Now turn the stimulus off
 for node in range(1,numberOfXElements/2):
     nodeDomain = decomposition.NodeDomainGet(node,1)
     if nodeDomain == computationalNodeNumber:
         cellMLParametersField.ParameterSetUpdateNode(CMISS.FieldVariableTypes.U, CMISS.FieldParameterSetTypes.VALUES, 1, 1, node, stimComponent, 0.0)
+#DOC-START turn stimulus off
 
+#DOC-START solve with no stiumlus
 #Set the time loop from stimStop to timeStop
 controlLoop.TimesSet(stimStop,timeStop,pdeTimeStep)
 
 # Now solve the problem from stim stop until time stop
 problem.Solve()
+#DOC-END solve with no stiumlus
 
+#DOC-START export fields
 # Export the results, here we export them as standard exnode, exelem files
 fields = CMISS.Fields()
 fields.CreateRegion(region)
 fields.NodesExport("Monodomain","FORTRAN")
 fields.ElementsExport("Monodomain","FORTRAN")
 fields.Finalise()
+#DOC-END export fields
 
