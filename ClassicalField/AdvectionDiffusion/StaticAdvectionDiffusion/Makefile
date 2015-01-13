@@ -61,6 +61,7 @@ else
 endif
 
 #----------------------------------------------------------------------------------------------------------------------------------
+USEFIELDML = true
 
 EXAMPLE_PATH=ClassicalField/AdvectionDiffusion/
 

@@ -49,6 +49,9 @@
 PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
 
   USE OPENCMISS
+  USE FIELDML_OUTPUT_ROUTINES
+  USE FIELDML_UTIL_ROUTINES
+  USE FIELDML_API
   USE MPI
 
 
@@ -85,6 +88,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   INTEGER(CMISSIntg), PARAMETER :: AnalyticFieldUserNumber=13
   INTEGER(CMISSIntg), PARAMETER :: SourceFieldUserNumber=14
 
+  INTEGER(CMISSIntg), PARAMETER :: MeshComponentNumber=1
+
+  CHARACTER(C_CHAR), PARAMETER :: NUL=C_NULL_CHAR
 
   !Program types
   
@@ -127,6 +133,16 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   INTEGER(CMISSIntg) :: EquationsSetIndex
   INTEGER(CMISSIntg) :: FirstNodeNumber,LastNodeNumber
   INTEGER(CMISSIntg) :: Err
+
+  INTEGER(CMISSIntg) :: dimensions, i
+  
+  !FieldML variables
+  CHARACTER(KIND=C_CHAR,LEN=*), PARAMETER :: outputDirectory = ""
+  CHARACTER(KIND=C_CHAR,LEN=*), PARAMETER :: outputFilename = "StaticAdvectionDiffusion.xml"
+  CHARACTER(KIND=C_CHAR,LEN=*), PARAMETER :: basename = "static_advection_diffusion"
+
+  TYPE(FieldmlInfoType) :: fieldmlInfo
+
   
 #ifdef WIN32
   !Initialise QuickWin
@@ -154,17 +170,17 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   CALL MPI_BCAST(NUMBER_GLOBAL_Y_ELEMENTS,1,MPI_INTEGER,0,MPI_COMM_WORLD,MPI_IERROR)
   CALL MPI_BCAST(NUMBER_GLOBAL_Z_ELEMENTS,1,MPI_INTEGER,0,MPI_COMM_WORLD,MPI_IERROR)
   CALL MPI_BCAST(NUMBER_OF_DOMAINS,1,MPI_INTEGER,0,MPI_COMM_WORLD,MPI_IERROR)
+  
+  IF( NUMBER_GLOBAL_Z_ELEMENTS == 0 ) THEN
+    dimensions = 2
+  ELSE
+    dimensions = 3
+  ENDIF
 
     !Start the creation of a new RC coordinate system
-    CALL CMISSCoordinateSystem_Initialise(CoordinateSystem,Err)
-    CALL CMISSCoordinateSystem_CreateStart(CoordinateSystemUserNumber,CoordinateSystem,Err)
-    IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN
-      !Set the coordinate system to be 2D
-      CALL CMISSCoordinateSystem_DimensionSet(CoordinateSystem,2,Err)
-    ELSE
-      !Set the coordinate system to be 3D
-      CALL CMISSCoordinateSystem_DimensionSet(CoordinateSystem,3,Err)
-    ENDIF
+    CALL CMISSCoordinateSystemTypeInitialise(CoordinateSystem,Err)
+    CALL CMISSCoordinateSystemCreateStart(CoordinateSystemUserNumber,CoordinateSystem,Err)
+    CALL CMISSCoordinateSystemDimensionSet(CoordinateSystem,dimensions,Err)
     !Finish the creation of the coordinate system
     CALL CMISSCoordinateSystem_CreateFinish(CoordinateSystem,Err)
 
@@ -178,15 +194,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
     CALL CMISSRegion_CreateFinish(Region,Err)
 
     !Start the creation of a basis (default is trilinear lagrange)
-    CALL CMISSBasis_Initialise(Basis,Err)
-    CALL CMISSBasis_CreateStart(BasisUserNumber,Basis,Err)
-    IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN
-      !Set the basis to be a bilinear Lagrange basis
-      CALL CMISSBasis_NumberOfXiSet(Basis,2,Err)
-    ELSE
-      !Set the basis to be a trilinear Lagrange basis
-      CALL CMISSBasis_NumberOfXiSet(Basis,3,Err)
-    ENDIF
+    CALL CMISSBasisTypeInitialise(Basis,Err)
+    CALL CMISSBasisCreateStart(BasisUserNumber,Basis,Err)
+    CALL CMISSBasisNumberOfXiSet(Basis,dimensions,Err)
     !Finish the creation of the basis
     CALL CMISSBasis_CreateFinish(BASIS,Err)
 
@@ -198,9 +208,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
     !Set the default basis
     CALL CMISSGeneratedMesh_BasisSet(GeneratedMesh,Basis,Err)   
     !Define the mesh on the region
-    IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN
-      CALL CMISSGeneratedMesh_ExtentSet(GeneratedMesh,(/WIDTH,HEIGHT/),Err)
-      CALL CMISSGeneratedMesh_NumberOfElementsSet(GeneratedMesh,(/NUMBER_GLOBAL_X_ELEMENTS,NUMBER_GLOBAL_Y_ELEMENTS/),Err)
+    IF(dimensions == 2) THEN
+      CALL CMISSGeneratedMeshExtentSet(GeneratedMesh,(/WIDTH,HEIGHT/),Err)
+      CALL CMISSGeneratedMeshNumberOfElementsSet(GeneratedMesh,(/NUMBER_GLOBAL_X_ELEMENTS,NUMBER_GLOBAL_Y_ELEMENTS/),Err)
     ELSE
       CALL CMISSGeneratedMesh_ExtentSet(GeneratedMesh,(/WIDTH,HEIGHT,LENGTH/),Err)
       CALL CMISSGeneratedMesh_NumberOfElementsSet(GeneratedMesh,(/NUMBER_GLOBAL_X_ELEMENTS,NUMBER_GLOBAL_Y_ELEMENTS, &
@@ -225,11 +235,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   !Set the decomposition to use
   CALL CMISSField_MeshDecompositionSet(GeometricField,Decomposition,Err)
   !Set the domain to be used by the field components.
-  CALL CMISSField_ComponentMeshComponentSet(GeometricField,CMISS_FIELD_U_VARIABLE_TYPE,1,1,Err)
-  CALL CMISSField_ComponentMeshComponentSet(GeometricField,CMISS_FIELD_U_VARIABLE_TYPE,2,1,Err)
-  IF(NUMBER_GLOBAL_Z_ELEMENTS/=0) THEN
-    CALL CMISSField_ComponentMeshComponentSet(GeometricField,CMISS_FIELD_U_VARIABLE_TYPE,3,1,Err)
-  ENDIF
+  DO i = 1, dimensions
+    CALL CMISSFieldComponentMeshComponentSet(GeometricField,CMISSFieldUVariableType,i,MeshComponentNumber,Err)
+  ENDDO
   !Finish creating the field
   CALL CMISSField_CreateFinish(GeometricField,Err)
 
@@ -276,9 +284,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   CALL CMISSField_ParameterSetDataGet(GeometricField,CMISS_FIELD_U_VARIABLE_TYPE,CMISS_FIELD_VALUES_SET_TYPE,GEOMETRIC_PARAMETERS, &
     & Err)
   !Create the equations set independent field variables
-  CALL CMISSField_Initialise(IndependentField,Err)
-  CALL CMISSEquationsSet_IndependentCreateStart(EquationsSet,IndependentFieldUserNumber,IndependentField,Err)
-  IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN
+  CALL CMISSFieldTypeInitialise(IndependentField,Err)
+  CALL CMISSEquationsSetIndependentCreateStart(EquationsSet,IndependentFieldUserNumber,IndependentField,Err)
+  IF( dimensions == 2 ) THEN
   !For comparison withe analytical solution used here, the independent field must be set to the following:
   !w(x,y)=(sin 6y,cos 6x) FIELD_U_VARIABLE_TYPE,1,FIELD_NODE_BASED_INTERPOLATION
 !   CALL CMISSField_ComponentInterpolationSet(IndependentField,CMISS_FIELD_U_VARIABLE_TYPE,1,CMISS_FIELD_NODE_BASED_INTERPOLATION,Err) 
@@ -292,9 +300,9 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
   CALL CMISSEquationsSet_IndependentCreateFinish(EquationsSet,Err)
 
   !Create the equations set analytic field variables
-  CALL CMISSField_Initialise(AnalyticField,Err)
-  IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN  
-    CALL CMISSEquationsSet_AnalyticCreateStart(EquationsSet,CMISS_EQUATIONS_SET_ADVECTION_DIFFUSION_EQUATION_TWO_DIM_1,&
+  CALL CMISSFieldTypeInitialise(AnalyticField,Err)
+  IF( dimensions == 2) THEN  
+    CALL CMISSEquationsSetAnalyticCreateStart(EquationsSet,CMISSEquationsSetAdvectionDiffusionTwoDim1,&
       & AnalyticFieldUserNumber,AnalyticField,Err)
   ELSE
     WRITE(*,'(A)') "Three dimensions is not implemented."
@@ -321,7 +329,7 @@ PROGRAM STATICADVECTIONDIFFUSIONEXAMPLE
 !   CALL CMISSEquationsSetBoundaryConditionsCreateStart(EquationsSet,BoundaryConditions,Err)
 !   !Set the first node to 0.0 and the last node to 1.0
 !   FirstNodeNumber=1
-!   IF(NUMBER_GLOBAL_Z_ELEMENTS==0) THEN
+!   IF( dimensions == 2 ) THEN
 !     LastNodeNumber=(NUMBER_GLOBAL_X_ELEMENTS+1)*(NUMBER_GLOBAL_Y_ELEMENTS+1)
 !   ELSE
 !     LastNodeNumber=(NUMBER_GLOBAL_X_ELEMENTS+1)*(NUMBER_GLOBAL_Y_ELEMENTS+1)*(NUMBER_GLOBAL_Z_ELEMENTS+1)
@@ -416,11 +424,29 @@ CALL CMISSSolverEquations_BoundaryConditionsCreateFinish(SolverEquations,Err)
 
   EXPORT_FIELD=.TRUE.
   IF(EXPORT_FIELD) THEN
-    CALL CMISSFields_Initialise(Fields,Err)
-    CALL CMISSFields_Create(Region,Fields,Err)
-    CALL CMISSFields_NodesExport(Fields,"StaticAdvectionDiffusion","FORTRAN",Err)
-    CALL CMISSFields_ElementsExport(Fields,"StaticAdvectionDiffusion","FORTRAN",Err)
-    CALL CMISSFields_Finalise(Fields,Err)
+    !CALL CMISSFieldsTypeInitialise(Fields,Err)
+    !CALL CMISSFieldsTypeCreate(Region,Fields,Err)
+    !CALL CMISSFieldIONodesExport(Fields,"StaticAdvectionDiffusion","FORTRAN",Err)
+    !CALL CMISSFieldIOElementsExport(Fields,"StaticAdvectionDiffusion","FORTRAN",Err)
+    !CALL CMISSFieldsTypeFinalise(Fields,Err)
+    
+    CALL FieldmlOutput_InitializeInfo( Region, Mesh, dimensions, outputDirectory, basename, fieldmlInfo, err )
+
+    CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".geometric", region, mesh, GeometricField, err )
+
+    CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".dependent", region, mesh, DependentField, err )
+
+    CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".independent", region, mesh, IndependentField, err )
+
+    CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".source", region, mesh, SourceField, err )
+
+    CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".materials", region, mesh, MaterialsField, err )
+
+    !CALL FieldmlOutput_AddField( fieldmlInfo, baseName//".analytic", region, mesh, AnalyticField, err )
+    
+    CALL FieldmlOutput_Write( fieldmlInfo, outputFilename, err )
+    
+    CALL FieldmlUtil_FinalizeInfo( fieldmlInfo )
 
   ENDIF
 
