@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<Fieldml version="0.5.0" xsi:noNamespaceSchemaLocation="http://www.fieldml.org/resources/xml/0.5/FieldML_0.5.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <Region name="/">
+  <Import xlink:href="http://www.fieldml.org/resources/xml/0.5/FieldML_Library_0.5.xml" region="library">
+   <ImportType localName="real.1d" remoteName="real.1d"/>
+   <ImportEvaluator localName="shape.unit.tetrahedron" remoteName="shape.unit.tetrahedron"/>
+   <ImportEvaluator localName="interpolator.3d.unit.trilinearSimplex" remoteName="interpolator.3d.unit.trilinearSimplex"/>
+   <ImportType localName="parameters.3d.unit.trilinearSimplex" remoteName="parameters.3d.unit.trilinearSimplex"/>
+   <ImportEvaluator localName="parameters.3d.unit.trilinearSimplex.argument" remoteName="parameters.3d.unit.trilinearSimplex.argument"/>
+   <ImportType localName="parameters.3d.unit.trilinearSimplex.component" remoteName="parameters.3d.unit.trilinearSimplex.component"/>
+   <ImportEvaluator localName="parameters.3d.unit.trilinearSimplex.component.argument" remoteName="parameters.3d.unit.trilinearSimplex.component.argument"/>
+   <ImportEvaluator localName="chart.3d.argument" remoteName="chart.3d.argument"/>
+   <ImportType localName="coordinates.rc.3d" remoteName="coordinates.rc.3d"/>
+   <ImportType localName="coordinates.rc.3d.component" remoteName="coordinates.rc.3d.component"/>
+   <ImportEvaluator localName="coordinates.rc.3d.component.argument" remoteName="coordinates.rc.3d.component.argument"/>
+  </Import>
+  <EnsembleType name="nodes">
+   <Members>
+    <MemberRange min="1" max="38"/>
+   </Members>
+  </EnsembleType>
+  <ArgumentEvaluator name="nodes.argument" valueType="nodes"/>
+  <ArgumentEvaluator name="nodes.parameters.argument" valueType="real.1d"/>
+  <MeshType name="mesh3d">
+   <Elements name="elements">
+    <Members>
+     <MemberRange min="1" max="102"/>
+    </Members>
+   </Elements>
+   <Chart name="xi">
+    <Components name="mesh3d.xi.components" count="3"/>
+   </Chart>
+   <Shapes evaluator="shape.unit.tetrahedron"/>
+  </MeshType>
+  <ArgumentEvaluator name="mesh3d.argument" valueType="mesh3d"/>
+  <DataResource name="mesh3d.connectivity1.data.resource">
+   <DataResourceDescription>
+    <DataResourceString>31 4 3 1 32 34 33 38 31 36 10 38 38 19 33 35 38 7 31 33 29 27 32 17 32 24 28 23 15 32 27 17 34 11 3 6 38 7 10 31 38 7 19 10 29 35 22 32 29 35 25 22 32 38 33 35 21 33 35 26 4 31 3 6 33 23 32 26 24 34 16 32 16 33 8 14 33 23 16 32 33 23 14 16 37 38 22 13 38 19 18 10 12 15 37 6 35 19 21 18 34 36 6 31 18 10 13 38 33 23 26 14 33 9 20 7 32 37 15 34 36 12 13 37 32 37 17 15 4 12 36 6 4 12 5 36 36 38 13 10 34 15 6 37 4 31 2 1 14 33 20 21 38 19 35 18 33 9 14 20 24 34 11 16 31 4 36 6 21 35 25 30 33 34 16 8 38 36 34 31 36 13 12 5 34 15 11 6 31 2 10 36 36 10 5 2 33 34 32 16 38 7 33 19 33 31 38 34 4 36 5 2 5 13 10 36 33 9 8 14 35 19 33 21 4 31 36 2 21 33 26 14 31 7 9 33 23 32 24 16 37 32 22 38 18 38 22 35 33 7 20 19 22 29 32 17 36 37 6 12 21 33 20 19 13 38 36 37 8 31 3 1 31 34 3 6 7 31 9 1 18 38 13 22 29 27 28 32 27 24 28 32 30 32 26 35 33 31 8 9 21 26 35 30 34 36 38 37 30 32 28 23 29 35 30 25 29 35 32 30 30 32 23 26 32 35 22 38 8 11 3 34 16 8 34 11 31 2 7 10 34 31 8 33 31 8 3 34 34 36 37 6 32 30 28 29 15 24 27 32 31 7 2 1 24 34 15 11 37 32 38 34 24 34 32 15 33 35 26 32 13 12 17 37 21 35 18 25 32 37 22 17 18 35 22 25 37 22 17 13 12 15 17 37 9 31 8 1 
+</DataResourceString>
+   </DataResourceDescription>
+   <ArrayDataSource name="mesh3d.connectivity1.data.source" location="0" rank="2">
+    <RawArraySize>102 4</RawArraySize>
+    <ArrayDataSize>102 4</ArrayDataSize>
+   </ArrayDataSource>
+  </DataResource>
+  <ParameterEvaluator name="mesh3d.connectivity1" valueType="nodes">
+   <DenseArrayData data="mesh3d.connectivity1.data.source">
+    <DenseIndexes>
+     <IndexEvaluator evaluator="mesh3d.argument.elements"/>
+     <IndexEvaluator evaluator="parameters.3d.unit.trilinearSimplex.component.argument"/>
+    </DenseIndexes>
+   </DenseArrayData>
+  </ParameterEvaluator>
+  <AggregateEvaluator name="mesh3d.interpolation1.dofs" valueType="parameters.3d.unit.trilinearSimplex">
+   <Bindings>
+    <BindIndex argument="parameters.3d.unit.trilinearSimplex.component.argument" indexNumber="1"/>
+    <Bind argument="nodes.argument" source="mesh3d.connectivity1"/>
+   </Bindings>
+   <ComponentEvaluators default="nodes.parameters.argument"/>
+  </AggregateEvaluator>
+  <ReferenceEvaluator name="mesh3d.interpolation1" evaluator="interpolator.3d.unit.trilinearSimplex">
+   <Bindings>
+    <Bind argument="chart.3d.argument" source="mesh3d.argument.xi"/>
+    <Bind argument="parameters.3d.unit.trilinearSimplex.argument" source="mesh3d.interpolation1.dofs"/>
+   </Bindings>
+  </ReferenceEvaluator>
+  <PiecewiseEvaluator name="mesh3d.template1" valueType="real.1d">
+   <IndexEvaluators>
+    <IndexEvaluator evaluator="mesh3d.argument.elements" indexNumber="1"/>
+   </IndexEvaluators>
+   <EvaluatorMap default="mesh3d.interpolation1"/>
+  </PiecewiseEvaluator>
+  <DataResource name="nodes.coordinates.data.resource">
+   <DataResourceDescription>
+    <DataResourceString>0 0.166667 0.471209 0.25 0.166667 0.399084 0 0.371651 0.333333 0.25 0.274621 0.333333 0.420393 0.14933 0.21978 0.113958 0.464391 0.133508 0.104784 -0.12163 0.469982 -0.286085 0.210768 0.346097 -0.196251 -0.0450108 0.4535 0.380338 -0.140576 0.285232 -0.192908 0.447096 0.0988583 0.351963 0.351072 0.01728 0.494163 0.0216122 -0.0477689 -0.434255 -0.12808 0.202866 0.0597517 0.46962 -0.152424 -0.443631 0.216275 0.0508058 0.305959 0.219879 -0.323217 0.33578 -0.366463 -0.0242983 0.146742 -0.380009 0.282938 -0.131822 -0.307261 0.365995 -0.115437 -0.482745 0.0216322 0.364255 -0.129055 -0.310683 -0.453831 0.00892701 -0.202559 -0.297935 0.325803 -0.227598 0.117265 -0.373623 -0.303995 -0.388065 -0.287077 -0.113066 -0.0234076 0.274755 -0.413927 -0.228868 0.063714 -0.436504 0.0590699 -0.0374542 -0.491859 -0.213876 -0.261581 -0.3637 0.0685945 0.111802 0.275107 -0.0618971 0.0543087 -0.185031 -0.135139 -0.0831308 0.138439 -0.0567885 0.214457 0.0633216 0.0180667 -0.217405 -0.111734 0.24059 0.140919 0.13981 0.189759 0.173894 -0.0758113 0.155909 -0.0752719 0.0615047 
+</DataResourceString>
+   </DataResourceDescription>
+   <ArrayDataSource name="nodes.coordinates.data.source" location="0" rank="2">
+    <RawArraySize>38 3</RawArraySize>
+    <ArrayDataSize>38 3</ArrayDataSize>
+   </ArrayDataSource>
+  </DataResource>
+  <ParameterEvaluator name="nodes.coordinates" valueType="real.1d">
+   <DenseArrayData data="nodes.coordinates.data.source">
+    <DenseIndexes>
+     <IndexEvaluator evaluator="nodes.argument"/>
+     <IndexEvaluator evaluator="coordinates.rc.3d.component.argument"/>
+    </DenseIndexes>
+   </DenseArrayData>
+  </ParameterEvaluator>
+  <AggregateEvaluator name="coordinates" valueType="coordinates.rc.3d">
+   <Bindings>
+    <Bind argument="nodes.parameters.argument" source="nodes.coordinates"/>
+   </Bindings>
+   <ComponentEvaluators default="mesh3d.template1"/>
+  </AggregateEvaluator>
+ </Region>
+</Fieldml>
